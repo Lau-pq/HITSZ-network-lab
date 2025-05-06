@@ -20,7 +20,7 @@ void ip_in(buf_t *buf, uint8_t *src_mac) {
     // 进行报头检测
     ip_hdr_t *ip_hdr = (ip_hdr_t *)buf->data;
     if (ip_hdr->version != IP_VERSION_4 || 
-        buf->len <= swap16(ip_hdr->total_len16)) {
+        swap16(ip_hdr->total_len16) > buf->len) {
         return;
     }
     // 校验头部校验和
