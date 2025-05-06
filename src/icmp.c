@@ -11,6 +11,20 @@
  */
 static void icmp_resp(buf_t *req_buf, uint8_t *src_ip) {
     // TO-DO
+    // 初始化并封装数据
+    buf_init(&txbuf, req_buf->len);
+    memcpy(txbuf.data, req_buf->data, req_buf->len);
+
+    // 填写 ICMP 报头
+    icmp_hdr_t *icmp_hdr = (icmp_hdr_t *)txbuf.data;
+    icmp_hdr->type = ICMP_TYPE_ECHO_REPLY;
+    icmp_hdr->checksum16 = 0;
+
+    // 填写校验和
+    icmp_hdr->checksum16 = checksum16((uint16_t *)txbuf.data, txbuf.len);
+
+    // 发送数据报
+    ip_out(&txbuf, src_ip, NET_PROTOCOL_ICMP);
 }
 
 /**
@@ -21,6 +35,16 @@ static void icmp_resp(buf_t *req_buf, uint8_t *src_ip) {
  */
 void icmp_in(buf_t *buf, uint8_t *src_ip) {
     // TO-DO
+    // 报头检测
+    if (buf->len < sizeof(icmp_hdr_t)) {
+        return;
+    }
+
+    // 查看 ICMP 类型，如果是回显请求，回送回显应答
+    icmp_hdr_t *icmp_hdr = (icmp_hdr_t *)buf->data;
+    if (icmp_hdr->type == ICMP_TYPE_ECHO_REQUEST) {
+        icmp_resp(buf, src_ip);
+    }
 }
 
 /**
@@ -32,6 +56,24 @@ void icmp_in(buf_t *buf, uint8_t *src_ip) {
  */
 void icmp_unreachable(buf_t *recv_buf, uint8_t *src_ip, icmp_code_t code) {
     // TO-DO
+    // 初始化并填写报头
+    buf_init(&txbuf, sizeof(icmp_hdr_t) + sizeof(ip_hdr_t) + 8);
+
+    icmp_hdr_t *icmp_hdr = (icmp_hdr_t *)txbuf.data;
+    icmp_hdr->type = ICMP_TYPE_UNREACH;  
+    icmp_hdr->code = code;  
+    icmp_hdr->checksum16 = 0;                     
+    icmp_hdr->id16 = 0;                 
+    icmp_hdr->seq16 = 0;
+
+    // 填写数据与校验和
+    uint8_t *data = txbuf.data + sizeof(icmp_hdr_t);
+    memcpy(data, recv_buf->data, sizeof(ip_hdr_t) + 8);
+   
+    icmp_hdr->checksum16 = checksum16((uint16_t *)txbuf.data, txbuf.len);
+
+    // 发送数据报
+    ip_out(&txbuf, src_ip, NET_PROTOCOL_ICMP);
 }
 
 /**
