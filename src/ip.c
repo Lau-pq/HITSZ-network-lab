@@ -24,11 +24,11 @@ void ip_in(buf_t *buf, uint8_t *src_mac) {
         return;
     }
     // 校验头部校验和
-    uint16_t checksum = swap16(ip_hdr->hdr_checksum16);
+    uint16_t checksum = ip_hdr->hdr_checksum16;
     ip_hdr->hdr_checksum16 = 0;
     uint16_t calc_checksum = checksum16((uint16_t *)buf->data, sizeof(ip_hdr_t));
     if (checksum != calc_checksum) return;
-    ip_hdr->hdr_checksum16 = swap16(checksum);
+    ip_hdr->hdr_checksum16 = checksum;
     
     // 对比目的 IP 地址
     if (memcmp(ip_hdr->dst_ip, net_if_ip, NET_IP_LEN) != 0) {
@@ -79,7 +79,7 @@ void ip_fragment_out(buf_t *buf, uint8_t *ip, net_protocol_t protocol, int id, u
 
     // 计算并填写校验和
     ip_hdr->hdr_checksum16 = 0;
-    ip_hdr->hdr_checksum16 = swap16(checksum16((uint16_t *)buf->data, sizeof(ip_hdr_t)));
+    ip_hdr->hdr_checksum16 = checksum16((uint16_t *)buf->data, sizeof(ip_hdr_t));
 
     // 发送数据
     arp_out(buf, ip);
