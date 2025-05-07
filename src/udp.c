@@ -36,7 +36,6 @@ void udp_in(buf_t *buf, uint8_t *src_ip) {
 
     // 查询处理函数
     uint16_t dst_port = swap16(udp_hdr->dst_port16);
-    printf("dst=%u", dst_port);
     udp_handler_t *handler = map_get(&udp_table, &dst_port);
 
     // 处理未找到处理函数的情况
