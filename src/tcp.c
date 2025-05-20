@@ -129,6 +129,7 @@ void tcp_out(tcp_conn_t *tcp_conn, buf_t *buf, uint16_t src_port, uint8_t *dst_i
     hdr->doff = (sizeof(tcp_hdr_t) / 4) << 4;
     hdr->flags = flags;
     hdr->win = swap16(TCP_MAX_WINDOW_SIZE);
+    hdr->uptr = 0;
 
     // 计算并填充校验和
     hdr->checksum16 = 0;
