@@ -101,29 +101,26 @@ void ip_out(buf_t *buf, uint8_t *ip, net_protocol_t protocol) {
     if (buf->len <= max_payload) {
         // 直接发送
         ip_fragment_out(buf, ip, protocol, id, 0, 0);
-        return;
+    } else {
+        // 分片处理
+        uint16_t offset = 0;
+        buf_t ip_buf;
+
+        while (buf->len > 0) {
+            size_t fragment_size = (buf->len > max_payload) ? max_payload : buf->len;
+
+            buf_init(&ip_buf, fragment_size);
+            memcpy(ip_buf.data, buf->data, fragment_size);
+
+            ip_fragment_out(&ip_buf, ip, protocol, id, 
+                            offset / IP_HDR_OFFSET_PER_BYTE, 
+                            (buf->len > max_payload) ? 1 : 0);
+            
+            offset += fragment_size;
+            buf->data += fragment_size;
+            buf->len -= fragment_size;
+        }
     }
-
-    // 分片处理
-    uint16_t offset = 0;
-    buf_t ip_buf;
-
-
-    while (buf->len > 0) {
-        size_t fragment_size = (buf->len > max_payload) ? max_payload : buf->len;
-
-        buf_init(&ip_buf, fragment_size);
-        memcpy(ip_buf.data, buf->data, fragment_size);
-
-        ip_fragment_out(&ip_buf, ip, protocol, id, 
-                        offset / IP_HDR_OFFSET_PER_BYTE, 
-                        (buf->len > max_payload) ? 1 : 0);
-        
-        offset += fragment_size;
-        buf->data += fragment_size;
-        buf->len -= fragment_size;
-    }
-
     id++;
 
 }
