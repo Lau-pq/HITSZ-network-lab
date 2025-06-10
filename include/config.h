@@ -6,19 +6,35 @@
     {                      \
         192, 168, 163, 103 \
     }  // 测试用网卡ip地址
+#define NET_IF_IP6 \
+    { \
+        0x20, 0x01, 0x0d, 0xb8, \
+        0x00, 0x00, 0x00, 0x00, \
+        0x00, 0x00, 0x00, 0x00, \
+        0x00, 0x00, 0x00, 0x01  \
+    }  // 测试用网卡IPv6地址 (2001:db8::1)
 #define NET_IF_MAC                         \
     {                                      \
         0x11, 0x22, 0x33, 0x44, 0x55, 0x66 \
     }  // 测试用网卡mac地址
+
 #else
 #define NET_IF_IP        \
     {                    \
         192, 168, 56, 2 \
     }  // 自定义网卡ip地址
+#define NET_IF_IP6 \
+    { \
+        0x20, 0x01, 0x0d, 0xb8, \
+        0x00, 0x00, 0x00, 0x00, \
+        0x00, 0x00, 0x00, 0x00, \
+        0x00, 0x00, 0x00, 0x01  \
+    }  // 自定义网卡IPv6地址 (2001:db8::1)
 #define NET_IF_MAC                         \
     {                                      \
         0x11, 0x22, 0x33, 0x44, 0x55, 0x66 \
     }  // 自定义网卡mac地址
+    
 #endif
 
 #define ETHERNET_MAX_TRANSPORT_UNIT 1500  // 以太网最大传输单元

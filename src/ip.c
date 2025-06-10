@@ -4,6 +4,14 @@
 #include "ethernet.h"
 #include "icmp.h"
 #include "net.h"
+#include <winsock2.h>
+
+const uint8_t IPV4_MAPPED_PREFIX[NET_IP6_LEN] = {
+    0x00, 0x00, 0x00, 0x00,  // 10字节的0
+    0x00, 0x00, 0x00, 0x00, 
+    0x00, 0x00, 0xff, 0xff,  // 0:0:0:0:0:0:FFFF:
+    0x00, 0x00, 0x00, 0x00   // IPv4地址位置
+};
 
 /**
  * @brief 处理一个收到的数据包
@@ -131,4 +139,167 @@ void ip_out(buf_t *buf, uint8_t *ip, net_protocol_t protocol) {
  */
 void ip_init() {
     net_add_protocol(NET_PROTOCOL_IP, ip_in);
+}
+
+/**
+ * @brief 处理一个收到的IPv6数据包
+ *
+ * @param buf 要处理的数据包
+ * @param src_mac 源mac地址
+ */
+void ip6_in(buf_t *buf, uint8_t *src_mac) {
+    if (buf->len < sizeof(ip6_hdr_t)) {
+        return;
+    }
+    ip6_hdr_t *ip6_hdr = (ip6_hdr_t *)buf->data;
+
+    // 检查版本
+    uint8_t version = (ntohl(ip6_hdr->version_tc_flowlabel) >> 28) & 0xF;
+    if (version != 6) {
+        return;
+    }
+
+    // 检查有效载荷长度
+    uint16_t payload_len = ntohs(ip6_hdr->payload_len);
+    if (buf->len < sizeof(ip6_hdr_t) + payload_len) {
+        return;
+    }
+
+    // 检查跳数限制
+    if (ip6_hdr->hop_limit == 0) {
+        return;
+    }
+
+    // 检查目的地址
+    if (memcmp(ip6_hdr->dst_ip, net_if_ip6, NET_IP6_LEN) != 0) {
+        uint8_t ipv4_addr[NET_IP_LEN];
+        if (is_ip4_mapped_ip6(ip6_hdr->dst_ip) && 
+            ip6_to_ip4_addr(ip6_hdr->dst_ip, ipv4_addr) &&
+            memcmp(ipv4_addr, net_if_ip, NET_IP_LEN) == 0) {
+            // 发给本机
+        } else {
+            return;
+        }
+    }
+
+    buf_remove_header(buf, sizeof(ip6_hdr_t));
+
+    uint8_t next_header = ip6_hdr->next_header;
+    uint8_t src_ip6[NET_IP6_LEN];
+
+    memcpy(src_ip6, ip6_hdr->src_ip, NET_IP6_LEN);
+    if (net_in6(buf, next_header, src_ip6) < 0) {
+        return;
+    }
+}
+
+/**
+ * @brief 处理一个要发送的IPv6数据包
+ *
+ * @param buf 要处理的包
+ * @param ip6 目标IPv6地址
+ * @param protocol 上层协议
+ */
+void ip6_out(buf_t *buf, uint8_t *ip6, net_protocol_t protocol) {
+    int max_payload_len = ETHERNET_MAX_TRANSPORT_UNIT - sizeof(ip6_hdr_t);
+    if (buf->len > max_payload_len) {
+        // 截断
+        buf->len = max_payload_len;
+    }
+
+    uint16_t payload_len = buf->len;
+
+    buf_add_header(buf, sizeof(ip6_hdr_t));
+    ip6_hdr_t *ip6_hdr = (ip6_hdr_t *)buf->data;
+
+    // 设置 IP 头部
+    ip6_hdr->version_tc_flowlabel = htonl(IP_VERSION_6 << 28);
+    ip6_hdr->payload_len = htons(payload_len);
+    ip6_hdr->next_header = protocol;
+    ip6_hdr->hop_limit = IP6_DEFAULT_HOP_LIMIT;
+    memcpy(ip6_hdr->src_ip, net_if_ip6, NET_IP6_LEN);
+    memcpy(ip6_hdr->dst_ip, ip6, NET_IP6_LEN);
+
+#ifndef TEST
+    uint8_t ipv4_addr[NET_IP_LEN];
+    if (is_ip4_mapped_ip6(ip6) && ip6_to_ip4_addr(ip6, ipv4_addr)) {
+        arp_out(buf, ipv4_addr);
+    } else {
+        ethernet_out(buf, ether_broadcast_mac, NET_PROTOCOL_IP6);
+    }
+#endif
+
+}
+
+
+
+/**
+ * @brief 初始化IPv6协议
+ */
+void ip6_init() {
+    net_add_protocol(NET_PROTOCOL_IP6, ip6_in);
+}
+
+/**
+ * @brief 将IPv4地址转换为IPv4映射的IPv6地址
+ * 
+ * @param ip4_addr IPv4地址 (4字节)
+ * @param ip6_addr 输出的IPv6地址 (16字节)
+ * @return int 1表示成功，0表示失败
+ */
+int ip4_to_ip6_addr(const uint8_t *ip4_addr, uint8_t *ip6_addr) {
+    if (!ip4_addr || !ip6_addr) {
+        return 0;
+    }
+    // 填充IPv4映射前缀
+    memcpy(ip6_addr, IPV4_MAPPED_PREFIX, NET_IP6_LEN);
+    
+    // 复制IPv4地址到最后4个字节
+    memcpy(ip6_addr + 12, ip4_addr, NET_IP_LEN);
+    return 1;
+}
+
+/**
+ * @brief 检查IPv6地址是否是IPv4映射地址
+ * 
+ * @param ip6_addr IPv6地址 (16字节)
+ * @return int 1表示是IPv4映射地址，0表示不是
+ */
+int is_ip4_mapped_ip6(const uint8_t *ip6_addr) {
+    if (!ip6_addr) {
+        return 0;
+    }
+    
+    // 检查前 10 个字节是否为 0
+    for (int i = 0; i < 10; i++) {
+        if (ip6_addr[i] != 0) {
+            return 0;
+        }
+    }
+    // 检查第 11、12 个字节是否为 0xFF
+    if (ip6_addr[10] != 0xFF || ip6_addr[11] != 0xFF) {
+        return 0;
+    }
+    
+    return 1;
+}
+
+/**
+ * @brief 从IPv4映射的IPv6地址中提取IPv4地址
+ * 
+ * @param ip6_addr IPv6地址 (16字节)
+ * @param ip4_addr 输出的IPv4地址 (4字节)
+ * @return int 1表示成功，0表示失败或不是IPv4映射地址
+ */
+int ip6_to_ip4_addr(const uint8_t *ip6_addr, uint8_t *ip4_addr) {
+    if (!ip6_addr || !ip4_addr) {
+        return 0;
+    }
+    // 检查是否是IPv4映射地址
+    if (!is_ip4_mapped_ip6(ip6_addr)) {
+        return 0;
+    }
+    // 提取IPv4地址
+    memcpy(ip4_addr, ip6_addr + 12, NET_IP_LEN);
+    return 1;
 }

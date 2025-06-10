@@ -26,4 +26,32 @@ typedef struct ip_hdr {
 void ip_in(buf_t *buf, uint8_t *src_mac);
 void ip_out(buf_t *buf, uint8_t *ip, net_protocol_t protocol);
 void ip_init();
+
+#define NET_IP6_LEN 16
+#define IP_VERSION_6 6
+#define IP6_DEFAULT_HOP_LIMIT 64     // IPv6默认跳数限制
+
+#pragma pack(1)
+typedef struct ip6_hdr {
+    uint32_t version_tc_flowlabel;    // 版本(4位),流量类别(8位),流标签(20位)
+    uint16_t payload_len;             // 有效载荷长度
+    uint8_t next_header;              // 下一个头部
+    uint8_t hop_limit;                // 跳数限制
+    uint8_t src_ip[NET_IP6_LEN];      // 源IPv6地址
+    uint8_t dst_ip[NET_IP6_LEN];      // 目标IPv6地址
+} ip6_hdr_t;
+#pragma pack()
+
+extern const uint8_t IPV4_MAPPED_PREFIX[NET_IP6_LEN];
+
+// IPv6函数
+void ip6_in(buf_t *buf, uint8_t *src_mac);
+void ip6_out(buf_t *buf, uint8_t *ip6, net_protocol_t protocol);
+void ip6_init();
+
+// 地址转换函数
+int ip4_to_ip6_addr(const uint8_t *ip4_addr, uint8_t *ip6_addr);
+int ip6_to_ip4_addr(const uint8_t *ip6_addr, uint8_t *ip4_addr);
+int is_ip4_mapped_ip6(const uint8_t *ip6_addr);
+
 #endif

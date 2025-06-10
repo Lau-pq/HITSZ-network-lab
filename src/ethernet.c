@@ -19,7 +19,11 @@ void ethernet_in(buf_t *buf) {
     uint16_t protocol = swap16(hdr->protocol16);
     buf_remove_header(buf, sizeof(ether_hdr_t));
     
-    net_in(buf, protocol, hdr->src);
+    if (protocol == NET_PROTOCOL_IP6) {
+        ip6_in(buf, hdr->src);
+    } else {
+        net_in(buf, protocol, hdr->src);
+    }
 }
 /**
  * @brief 处理一个要发送的数据包
